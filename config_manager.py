@@ -8,6 +8,7 @@ def save_config(config):
     """Save configuration to file"""
     # with open(CONFIG_FILE, 'w') as f:
     #     json.dump(config, f)
+    pass
 
 def load_config():
     """Load configuration from file"""
