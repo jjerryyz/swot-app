@@ -2,6 +2,9 @@ import streamlit as st
 from openai import AzureOpenAI
 import config_manager
 
+
+st.set_page_config(layout="wide")
+
 def init_openai_client():
     """Initialize Azure OpenAI client with user configuration"""
     return AzureOpenAI(
@@ -109,9 +112,9 @@ def show_config_page():
             "Azure OpenAI 终端点",
             value=st.session_state.openai_config['endpoint']
         )
-        st.session_state.openai_config['deployment_name'] = st.text_input(
+        st.session_state.openai_config['deployment_name'] = st.selectbox(
             "部署名称",
-            value=st.session_state.openai_config['deployment_name']
+            ("gpt-4o-mini","gpt-4o", "gpt-35-turbo")
         )
         st.session_state.openai_config['api_version'] = st.text_input(
             "API 版本",
@@ -125,6 +128,47 @@ def show_config_page():
             st.success("配置保存成功！")
             st.session_state.page = "analysis"
             st.rerun()
+
+def show_question_section(category):
+    st.markdown(f"### {category}")
+    for i, question in enumerate(st.session_state.questions[category]):
+        st.session_state.answers[category][i] = st.text_area(
+            f"{category} {i+1}: {question}",
+            value=st.session_state.answers[category][i],
+            key=f"{category}_{i}"
+        )
+
+@st.fragment()
+def show_questions():
+    with st.container(height=800):
+        # Display questions and collect answers
+        st.subheader("SWOT 分析问题")
+        
+        tab1, tab2, tab3, tab4 = st.tabs(["优势", "劣势", "机会", "威胁"])
+        with tab1:
+            show_question_section("优势")
+        with tab2:
+            show_question_section("劣势")
+        with tab3:
+            show_question_section("机会")
+        with tab4:
+            show_question_section("威胁")
+
+@st.fragment()
+def show_result():
+    with st.container(height=800):
+        if st.button("分析"):
+            # Format answers for analysis
+            formatted_answers = ""
+            for category in ['优势', '劣势', '机会', '威胁']:
+                formatted_answers += f"\n{category}：\n"
+                for i, answer in enumerate(st.session_state.answers[category]):
+                    formatted_answers += f"{i+1}. {answer}\n"
+            
+            with st.spinner("正在分析..."):
+                analysis = analyze_swot_answers(st.session_state.scenario, formatted_answers)
+                st.subheader("分析结果")
+                st.write(analysis)
 
 def show_analysis_page():
     """Show the SWOT analysis page"""
@@ -148,43 +192,29 @@ def show_analysis_page():
     st.write("请输入您的场景，我们将帮助您进行 SWOT 分析。")
 
     # Input scenario
-    scenario = st.text_area("请输入您的场景：", height=100)
+    st.session_state.scenario = st.text_area("请输入您的场景：", height=100)
+
     
-    if scenario:
-        if 'questions' not in st.session_state:
-            questions_text = get_swot_questions(scenario)
-            st.session_state.questions = parse_swot_questions(questions_text)
-            st.session_state.answers = {
-                '优势': [''] * len(st.session_state.questions['优势']),
-                '劣势': [''] * len(st.session_state.questions['劣势']),
-                '机会': [''] * len(st.session_state.questions['机会']),
-                '威胁': [''] * len(st.session_state.questions['威胁'])
-            }
+    if not st.session_state.scenario:
+        return
+    if not st.button("生成问题"):
+        return
+    if 'questions' not in st.session_state:
+        questions_text = get_swot_questions(st.session_state.scenario)
+        st.session_state.questions = parse_swot_questions(questions_text)
+        st.session_state.answers = {
+            '优势': [''] * len(st.session_state.questions['优势']),
+            '劣势': [''] * len(st.session_state.questions['劣势']),
+            '机会': [''] * len(st.session_state.questions['机会']),
+            '威胁': [''] * len(st.session_state.questions['威胁'])
+        }
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        show_questions()
         
-        # Display questions and collect answers
-        st.subheader("SWOT 分析问题")
-        
-        for category in ['优势', '劣势', '机会', '威胁']:
-            st.markdown(f"### {category}")
-            for i, question in enumerate(st.session_state.questions[category]):
-                st.session_state.answers[category][i] = st.text_area(
-                    f"{category} {i+1}: {question}",
-                    value=st.session_state.answers[category][i],
-                    key=f"{category}_{i}"
-                )
-        
-        if st.button("分析"):
-            # Format answers for analysis
-            formatted_answers = ""
-            for category in ['优势', '劣势', '机会', '威胁']:
-                formatted_answers += f"\n{category}：\n"
-                for i, answer in enumerate(st.session_state.answers[category]):
-                    formatted_answers += f"{i+1}. {answer}\n"
-            
-            with st.spinner("正在分析..."):
-                analysis = analyze_swot_answers(scenario, formatted_answers)
-                st.subheader("分析结果")
-                st.write(analysis)
+    with col2:
+        show_result()
 
 def main():
     # Initialize page state if not exists
